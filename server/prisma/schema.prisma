@@ -1,0 +1,234 @@
+// Prisma Schema for YatraSetu (SIH 2026)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   // "user" | "local" | "authority"
+  avatar       String   @default("👤")
+  phone        String?
+  location     String?  @default("Jaipur, Rajasthan")
+  speciality   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reports        CleanlinessReport[]
+  reportVotes    ReportVote[]
+  bookings       Booking[]
+  homestays      Homestay[]
+  guides         Guide[]
+  products       Product[]
+  sentMessages   Message[]           @relation("SentMessages")
+  alerts         EmergencyAlert[]
+
+  @@map("users")
+}
+
+model CleanlinessReport {
+  id                String   @id @default(uuid())
+  rank              Int      @default(1)
+  medal             String?
+  name              String
+  location          String
+  votes             Int      @default(1)
+  impact            String   @default("Medium") // "High" | "Medium" | "Low"
+  evidence          String   @default("[]")     // JSON array of image URLs
+  comments          String   @default("[]")     // JSON array of strings
+  userSolutions     String   @default("[]")     // JSON array of strings
+  authorityResponse String?
+  currentStatus     String   @default("Open")   // "Open" | "In Progress" | "Resolved"
+  reportedById      String?
+  reportedByName    String   @default("Community Member")
+  reportedAt        String
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reportedBy User?        @relation(fields: [reportedById], references: [id], onDelete: SetNull)
+  voteList   ReportVote[]
+
+  @@map("cleanliness_reports")
+}
+
+model ReportVote {
+  id        String   @id @default(uuid())
+  reportId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  report CleanlinessReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@map("report_votes")
+}
+
+model Homestay {
+  id             String   @id @default(uuid())
+  name           String
+  image          String
+  rating         Float    @default(4.8)
+  location       String
+  priceNumber    Int
+  price          String
+  available      Boolean  @default(true)
+  description    String
+  facilities     String   @default("[]") // JSON array of strings
+  contactImg     String
+  hostName       String
+  hostId         String?
+  availableDates String   @default("[]") // JSON array of YYYY-MM-DD
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  host User? @relation(fields: [hostId], references: [id], onDelete: SetNull)
+
+  @@map("homestays")
+}
+
+model Guide {
+  id             String   @id @default(uuid())
+  name           String
+  photo          String
+  verified       Boolean  @default(true)
+  rating         Float    @default(4.9)
+  location       String
+  languages      String   @default("[]") // JSON array of strings
+  speciality     String
+  places         String   @default("[]") // JSON array of strings
+  priceNumber    Int
+  price          String
+  priceUnit      String   @default("per day")
+  available      Boolean  @default(true)
+  tours          Int      @default(0)
+  guideId        String?
+  availableDates String   @default("[]") // JSON array of YYYY-MM-DD
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  guide User? @relation(fields: [guideId], references: [id], onDelete: SetNull)
+
+  @@map("guides")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  image       String
+  priceNumber Int
+  price       String
+  rating      Float    @default(4.8)
+  material    String
+  durability  String
+  category    String
+  seller      String
+  sellerId    String?
+  location    String
+  contact     String
+  stock       Int      @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sellerUser User? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+
+  @@map("products")
+}
+
+model Booking {
+  id           String   @id @default(uuid())
+  serviceId    String
+  serviceName  String
+  serviceType  String   // "Homestay" | "Guide Tour" | "Artisanal Craft"
+  userId       String
+  userName     String
+  userLocation String
+  userAvatar   String   @default("👤")
+  date         String
+  guests       Int      @default(1)
+  price        String
+  message      String
+  status       String   @default("pending") // "pending" | "accepted" | "declined"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bookings")
+}
+
+model CrowdSpot {
+  id           String   @id @default(uuid())
+  name         String
+  location     String
+  date         String
+  time         String
+  open         Boolean  @default(true)
+  count        Int      @default(0)
+  density      String   @default("Low")    // "High" | "Moderate" | "Low" | "Closed"
+  densityLevel String   @default("low")    // "high" | "medium" | "low"
+  trend        String   @default("→ Stable")
+  capacity     Int      @default(500)
+  waitTime     String   @default("5–10 min")
+  mapX         Int
+  mapY         Int
+  festival     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("crowd_spots")
+}
+
+model EmergencyAlert {
+  id          String   @id @default(uuid())
+  type        String
+  message     String
+  severity    String   @default("medium") // "high" | "medium" | "low"
+  time        String
+  icon        String   @default("⚠️")
+  location    String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("emergency_alerts")
+}
+
+model EmergencyService {
+  id        String   @id @default(uuid())
+  type      String   // Icon e.g. "🚔", "🏥", "🚒"
+  name      String
+  address   String
+  distance  String
+  contact   String
+  category  String   // "Police" | "Hospital" | "Fire"
+  location  String
+  createdAt DateTime @default(now())
+
+  @@map("emergency_services")
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  threadId   String
+  senderId   String
+  senderRole String   // "user" | "local"
+  receiverId String?
+  text       String
+  createdAt  DateTime @default(now())
+
+  sender User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
