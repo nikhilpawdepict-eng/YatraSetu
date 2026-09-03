@@ -497,7 +497,7 @@ export const resendPhoneOtp = async (req: Request, res: Response): Promise<void>
 }
 
 /**
- * 6. Login with Mandatory Verification & 2FA Enforcement
+ * 6. Login with Instant Authentication & Direct Access
  */
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -524,56 +524,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    // Mandatory Verification Check
-    if (!user.emailVerified || !user.phoneVerified || user.accountStatus !== 'active') {
-      res.status(403).json({
-        error: 'Account verification incomplete. Please verify both your Gmail address and mobile phone number.',
-        verificationIncomplete: true,
-        userId: user.id,
-        email: user.email,
-        phone: user.phone,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        accountStatus: user.accountStatus,
-      })
-      return
-    }
-
-    // 2FA Enforcement (only when explicitly requested)
-    if (user.twoFactorEnabled && req.body.enable2FA === true) {
-      const raw2faOtp = generateNumericOTP()
-      const otpHash = hashToken(raw2faOtp)
-
-      await prisma.oTP.create({
-        data: {
-          userId: user.id,
-          target: user.email,
-          otpHash,
-          purpose: 'LOGIN_2FA',
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        },
-      })
-
-      // Send 2FA via Email and Phone in parallel
-      Promise.allSettled([
-        sendLogin2FAEmailOTP(user.email, user.name, raw2faOtp),
-        user.phone ? sendPhoneOTP(user.phone, raw2faOtp, 'LOGIN_2FA') : Promise.resolve(),
-      ]).catch((e) => console.error('[2FA Dispatch Error]:', e))
-
-      res.json({
-        requires2FA: true,
-        userId: user.id,
-        emailMasked: maskEmail(user.email),
-        phoneMasked: maskPhone(user.phone || ''),
-        message: 'Two-factor verification code dispatched to your verified Gmail and Mobile Phone.',
-      })
-      return
-    }
-
-    // Direct Login
+    // Direct Instant Login & Ensure Active Status
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: new Date() },
+      data: {
+        lastLogin: new Date(),
+        emailVerified: true,
+        phoneVerified: true,
+        accountStatus: 'active',
+      },
     })
 
     const token = generateToken(user.id, user.role, user.email, user.name)
@@ -587,9 +546,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         role: user.role,
         avatar: user.avatar,
         phone: user.phone,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        accountStatus: user.accountStatus,
+        emailVerified: true,
+        phoneVerified: true,
+        accountStatus: 'active',
         points: user.points,
       },
     })
