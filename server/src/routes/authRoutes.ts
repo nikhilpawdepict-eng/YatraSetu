@@ -7,7 +7,6 @@ import {
   resendPhoneOtp,
   login,
   verifyLoginOtp,
-  googleAuth,
   forgotPassword,
   resetPassword,
   getMe,
@@ -29,7 +28,6 @@ router.post('/login', login)
 router.post('/verify-login-otp', verifyLoginOtp)
 router.post('/verify-2fa', verifyLoginOtp)
 router.post('/verify-otp', verifyLoginOtp)
-router.post('/google', googleAuth)
 router.post('/logout', logout)
 
 // Password Management

@@ -78,7 +78,7 @@ export const api = {
     async register(data: {
       name: string
       email: string
-      phone: string
+      phone?: string
       password: string
       role?: string
     }): Promise<{

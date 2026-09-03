@@ -39,7 +39,7 @@ interface AuthContextType {
   pendingInfo: PendingAuthInfo | null
   login: (email: string, password: string) => Promise<any>
   verifyLogin2FA: (otp: string) => Promise<any>
-  register: (data: { name: string; email: string; phone: string; password: string; role?: string }) => Promise<any>
+  register: (data: { name: string; email: string; phone?: string; password: string; role?: string }) => Promise<any>
   verifyEmailOtp: (otp: string) => Promise<any>
   resendEmailOtp: () => Promise<any>
   verifyPhoneOtp: (otp: string) => Promise<any>
@@ -137,15 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // 3. Register
-  const register = async (data: { name: string; email: string; phone: string; password: string; role?: string }) => {
+  const register = async (data: { name: string; email: string; phone?: string; password: string; role?: string }) => {
     const res = await api.auth.register(data)
-    setPendingInfo({
-      userId: res.userId,
-      email: res.email,
-      phone: res.phone,
-      role: res.role,
-    })
-    setAuthState('PENDING_EMAIL_VERIFICATION')
+    setPendingInfo(null)
+    setAuthState('UNAUTHENTICATED')
     return res
   }
 

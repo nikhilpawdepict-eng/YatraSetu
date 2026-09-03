@@ -46,13 +46,9 @@ export default function LoginPage({ onOpenTab }: Props) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Auto-open auth modal if pending verification
+  // Keep the modal open only for the optional legacy 2FA state.
   useEffect(() => {
-    if (
-      authState === 'PENDING_EMAIL_VERIFICATION' ||
-      authState === 'PENDING_PHONE_VERIFICATION' ||
-      authState === 'PENDING_2FA'
-    ) {
+    if (authState === 'PENDING_2FA') {
       setAuthModalOpen(true)
     }
   }, [authState])

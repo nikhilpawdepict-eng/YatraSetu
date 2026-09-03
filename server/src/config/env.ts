@@ -13,10 +13,6 @@ export const config = {
   baseUrl: process.env.BASE_URL || 'http://localhost:5000',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:8443',
 
-  // Google OAuth
-  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-
   // Email / SMTP Service
   emailHost: process.env.EMAIL_HOST || 'smtp.gmail.com',
   emailPort: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT, 10) : 587,

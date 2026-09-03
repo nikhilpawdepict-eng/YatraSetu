@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../../context/AuthContext'
 import { api } from '../../services/api'
 import {
@@ -58,7 +57,6 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
     resendEmailOtp,
     verifyPhoneOtp,
     resendPhoneOtp,
-    googleLogin,
     setPendingStep,
   } = useAuth()
 
@@ -211,12 +209,8 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
       setError('Full Name must be at least 2 characters long.')
       return
     }
-    if (!regEmail.toLowerCase().trim().endsWith('@gmail.com')) {
-      setError('Only Google Gmail addresses (@gmail.com) are accepted for verified accounts.')
-      return
-    }
-    if (regPhone.trim().length < 10) {
-      setError('Please enter a valid 10-digit mobile phone number.')
+    if (!/^\S+@\S+\.\S+$/.test(regEmail.trim())) {
+      setError('Please enter a valid email address.')
       return
     }
     if (passStrengthScore < 5) {
@@ -226,22 +220,14 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
 
     setLoading(true)
     try {
-      const fullPhone = `${countryCode} ${regPhone.trim()}`
-      setVerifyPhoneNum(regPhone.trim())
-      setVerifyPhoneCountryCode(countryCode)
-      setVerifyEmailAddr(regEmail.toLowerCase().trim())
-
       await register({
         name: regName.trim(),
         email: regEmail.toLowerCase().trim(),
-        phone: fullPhone,
         password: regPassword,
         role: regRole,
       })
-      setEmailResendTimer(60)
-      setPhoneResendTimer(60)
-      setView('verify_email')
-      setSuccessMsg(`Verification email with 6-digit code sent to ${regEmail}. Please check your Gmail.`)
+      setView('login')
+      setSuccessMsg('Account created successfully. You can now log in with your email and password.')
     } catch (err: any) {
       setError(err.message || 'Registration failed.')
     } finally {
@@ -282,8 +268,8 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
     setError(null)
     setSuccessMsg(null)
     const targetEmail = verifyEmailAddr || pendingInfo?.email || ''
-    if (!targetEmail || !targetEmail.endsWith('@gmail.com')) {
-      setError('Please enter a valid Gmail address (@gmail.com).')
+    if (!targetEmail || !/^\S+@\S+\.\S+$/.test(targetEmail)) {
+      setError('Please enter a valid email address.')
       return
     }
     setLoading(true)
@@ -425,42 +411,15 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
     }
   }
 
-  // 8. Google OAuth Success Handler
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    if (!credentialResponse.credential) {
-      setError('No credential received from Google.')
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await googleLogin(credentialResponse.credential)
-      if (res.phoneVerificationRequired) {
-        setView('verify_phone')
-        setSuccessMsg('Google identity verified! Please verify your mobile phone to complete activation.')
-        return
-      }
-
-      if (res.token && res.user) {
-        onSuccess?.()
-        onClose()
-      }
-    } catch (err: any) {
-      setError(err.message || 'Google authentication failed.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 9. Send Password Reset Code (Supports Gmail and Mobile Phone)
+  // 8. Send Password Reset Code
   const handleSendResetCode = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccessMsg(null)
 
     if (resetChannel === 'email') {
-      if (!forgotEmail || !forgotEmail.endsWith('@gmail.com')) {
-        setError('Please enter a valid Gmail address (@gmail.com).')
+      if (!forgotEmail || !/^\S+@\S+\.\S+$/.test(forgotEmail)) {
+        setError('Please enter a valid email address.')
         return
       }
     } else {
@@ -482,7 +441,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
       setView('reset_password')
       setSuccessMsg(
         resetChannel === 'email'
-          ? `6-digit password reset code sent to ${forgotEmail}. Please check your Gmail.`
+          ? `6-digit password reset code sent to ${forgotEmail}. Please check your email.`
           : `6-digit password reset OTP sent to ${forgotPhoneCountryCode} ${forgotPhone}. Please check your phone.`
       )
     } catch (err: any) {
@@ -611,9 +570,8 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-700 text-[#141B18] uppercase tracking-wider">
-                    Email Address (Gmail) *
+                    Email Address *
                   </label>
-                  <span className="text-[10px] text-[#0F6E5C] font-800">Gmail only (@gmail.com)</span>
                 </div>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-[#7B8582] absolute left-3 top-3" />
@@ -622,39 +580,9 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                     required
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="name@gmail.com"
+                    placeholder="name@example.com"
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#D0D7D4] bg-[#F7F6F2] font-600 focus:outline-none focus:border-[#0F6E5C]"
                   />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-700 text-[#141B18] uppercase tracking-wider mb-1">
-                  Mobile Phone Number *
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-28 px-2 py-2.5 rounded-xl border border-[#D0D7D4] bg-[#F7F6F2] font-700 text-xs"
-                  >
-                    {COUNTRY_CODES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.flag} {c.code}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="relative flex-1">
-                    <Smartphone className="w-4 h-4 text-[#7B8582] absolute left-3 top-3" />
-                    <input
-                      type="tel"
-                      required
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="98765 12345"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#D0D7D4] bg-[#F7F6F2] font-700 tracking-wider focus:outline-none focus:border-[#0F6E5C]"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -795,7 +723,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      <span>Create Account & Send Verification Codes</span>
+                      <span>Create Account</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -817,18 +745,6 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                     </button>
                   </span>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null)
-                      setSuccessMsg(null)
-                      setView('verify_phone')
-                    }}
-                    className="text-[#0F6E5C] font-800 hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <Smartphone className="w-3 h-3" />
-                    <span>Verify Mobile</span>
-                  </button>
                 </div>
               </div>
             </form>
@@ -837,7 +753,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
           {/* ========================================================================= */}
           {/* VIEW: VERIFY GMAIL OTP                                                    */}
           {/* ========================================================================= */}
-          {view === 'verify_email' && (
+          {false && view === 'verify_email' && (
             <form onSubmit={handleVerifyEmailSubmit} className="space-y-4 text-xs">
               <div className="space-y-1 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-[#E4F3EF] text-[#0F6E5C] flex items-center justify-center text-xl mx-auto">
@@ -921,7 +837,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
           {/* ========================================================================= */}
           {/* VIEW: VERIFY PHONE OTP (WITH PROMINENT SEND OTP BUTTON)                   */}
           {/* ========================================================================= */}
-          {view === 'verify_phone' && (
+          {false && view === 'verify_phone' && (
             <form onSubmit={handleVerifyPhoneSubmit} className="space-y-4 text-xs">
               <div className="space-y-1 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-[#E4F3EF] text-[#0F6E5C] flex items-center justify-center text-xl mx-auto">
@@ -1037,7 +953,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 <div>
                   <label className="block font-700 text-[#141B18] uppercase tracking-wider mb-1">
-                    Gmail Address *
+                    Email Address *
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#7B8582] absolute left-3 top-3" />
@@ -1046,7 +962,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="name@gmail.com"
+                      placeholder="name@example.com"
                       className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#D0D7D4] bg-[#F7F6F2] font-600 focus:outline-none focus:border-[#0F6E5C]"
                     />
                   </div>
@@ -1098,24 +1014,6 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Login to Account'}
                 </button>
               </form>
-
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-[#E4E7E5]"></div>
-                <span className="flex-shrink mx-3 text-[#7B8582] text-[10px] uppercase font-bold">or continue with</span>
-                <div className="flex-grow border-t border-[#E4E7E5]"></div>
-              </div>
-
-              {/* Official Google OAuth Sign-In Component */}
-              <div className="flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError('Google Sign-In was cancelled or failed.')}
-                  useOneTap={false}
-                  shape="pill"
-                  size="large"
-                  text="continue_with"
-                />
-              </div>
 
               <div className="flex items-center justify-between text-[#505D58] text-[11px] pt-1">
                 <span>
@@ -1222,8 +1120,8 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                 </p>
               </div>
 
-              {/* Channel Selector: Gmail or Mobile Phone */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Email is the only password-reset channel. */}
+              <div className="grid grid-cols-1 gap-2">
                 <button
                   type="button"
                   onClick={() => setResetChannel('email')}
@@ -1234,10 +1132,10 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                   }`}
                 >
                   <Mail className="w-3.5 h-3.5" />
-                  <span>Via Gmail Code</span>
+                  <span>Via Email Code</span>
                 </button>
 
-                <button
+                {false && <button
                   type="button"
                   onClick={() => setResetChannel('phone')}
                   className={`p-2.5 rounded-xl border font-700 text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
@@ -1248,13 +1146,13 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                 >
                   <Smartphone className="w-3.5 h-3.5" />
                   <span>Via Mobile OTP</span>
-                </button>
+                </button>}
               </div>
 
               {resetChannel === 'email' ? (
                 <div>
                   <label className="block font-700 text-[#141B18] uppercase tracking-wider mb-1">
-                    Registered Gmail Address *
+                    Registered Email Address *
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#7B8582] absolute left-3 top-3" />
@@ -1263,7 +1161,7 @@ export default function AuthModal({ isOpen, initialView = 'login', onClose, onSu
                       required
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="name@gmail.com"
+                      placeholder="name@example.com"
                       className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#D0D7D4] bg-[#F7F6F2] font-600 focus:outline-none focus:border-[#0F6E5C]"
                     />
                   </div>

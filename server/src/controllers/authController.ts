@@ -1,27 +1,15 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { OAuth2Client } from 'google-auth-library'
 import { prisma } from '../db/prisma.js'
 import { config } from '../config/env.js'
 import type { AuthenticatedRequest } from '../middleware/auth.js'
-import {
-  validatePasswordStrength,
-  validateGmailAddress,
-  validatePhoneNumber,
-  generateNumericOTP,
-  hashToken,
-  maskEmail,
-  maskPhone,
-} from '../utils/cryptoUtils.js'
+import { generateNumericOTP, hashToken, validatePasswordStrength } from '../utils/cryptoUtils.js'
 import {
   sendEmailVerificationOTP,
-  sendLogin2FAEmailOTP,
   sendPasswordResetOTP,
 } from '../services/emailService.js'
 import { sendPhoneOTP } from '../services/smsService.js'
-
-const googleClient = new OAuth2Client(config.googleClientId)
 
 export const generateToken = (userId: string, role: string, email: string, name: string) => {
   return jwt.sign(
@@ -32,7 +20,7 @@ export const generateToken = (userId: string, role: string, email: string, name:
 }
 
 /**
- * 1. Register User — Creates pending_verification account and sends real Email + Phone OTPs
+ * 1. Register User — Simple email and password registration
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -44,21 +32,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    // 2. Validate Gmail Address
-    const emailCheck = validateGmailAddress(email)
-    if (!emailCheck.valid) {
-      res.status(400).json({ error: emailCheck.message })
+    // 2. Validate email address
+    const cleanEmail = typeof email === 'string' ? email.toLowerCase().trim() : ''
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      res.status(400).json({ error: 'Please enter a valid email address.' })
       return
     }
-    const cleanEmail = email.toLowerCase().trim()
-
-    // 3. Validate Mobile Phone
-    const phoneCheck = validatePhoneNumber(phone)
-    if (!phoneCheck.valid) {
-      res.status(400).json({ error: phoneCheck.message })
-      return
-    }
-    const cleanPhone = phoneCheck.formatted!
 
     // 4. Validate Password Strength
     const passCheck = validatePasswordStrength(password)
@@ -79,16 +58,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       where: { email: cleanEmail },
     })
     if (existingEmail) {
-      res.status(409).json({ error: 'An account with this Gmail address already exists. Please log in.' })
-      return
-    }
-
-    // 7. Check unique Phone
-    const existingPhone = await prisma.user.findFirst({
-      where: { phone: cleanPhone },
-    })
-    if (existingPhone) {
-      res.status(409).json({ error: 'An account with this mobile phone number already exists.' })
+      res.status(409).json({ error: 'An account with this email address already exists. Please log in.' })
       return
     }
 
@@ -96,52 +66,22 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const passwordHash = await bcrypt.hash(password, 12)
     const avatar = role === 'local' ? '🏡' : role === 'authority' ? '🛡️' : '👤'
 
-    // 9. Create User in pending_verification status
+    // 9. Create an active account; phone verification is not required.
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
         email: cleanEmail,
-        phone: cleanPhone,
+        phone: phone?.trim() || null,
         passwordHash,
         role,
         avatar,
-        emailVerified: false,
+        emailVerified: true,
         phoneVerified: false,
-        accountStatus: 'pending_verification',
+        accountStatus: 'active',
         twoFactorEnabled: false,
         points: 200,
       },
     })
-
-    // 10. Generate 6-Digit Email OTP (5-min expiry) & Store ONLY the Hash
-    const rawEmailOtp = generateNumericOTP()
-    const emailOtpHash = hashToken(rawEmailOtp)
-    await prisma.oTP.create({
-      data: {
-        userId: user.id,
-        target: cleanEmail,
-        otpHash: emailOtpHash,
-        purpose: 'EMAIL_VERIFICATION',
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      },
-    })
-
-    // 11. Generate 6-Digit Phone OTP (5-min expiry) & Store ONLY the Hash
-    const rawPhoneOtp = generateNumericOTP()
-    const phoneOtpHash = hashToken(rawPhoneOtp)
-    await prisma.oTP.create({
-      data: {
-        userId: user.id,
-        target: cleanPhone,
-        otpHash: phoneOtpHash,
-        purpose: 'PHONE_VERIFICATION',
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      },
-    })
-
-    // 12. Dispatch Real Email & SMS (with dynamic OTP in templates)
-    await sendEmailVerificationOTP(cleanEmail, user.name, rawEmailOtp)
-    await sendPhoneOTP(cleanPhone, rawPhoneOtp, 'PHONE_VERIFICATION')
 
     res.status(201).json({
       success: true,
@@ -152,7 +92,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       accountStatus: user.accountStatus,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
-      message: 'Account created in pending_verification status. Please enter the 6-digit codes sent to your Gmail and Mobile Phone.',
+      message: 'Account created successfully. You can now log in with your email and password.',
     })
   } catch (err: any) {
     console.error('[AuthController] Registration Error:', err)
@@ -654,130 +594,7 @@ export const verifyLoginOtp = async (req: Request, res: Response): Promise<void>
 }
 
 /**
- * 8. Real Google OAuth 2.0 / OpenID Connect Verification
- */
-export const googleAuth = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { credential, idToken, role = 'user' } = req.body
-    const tokenToVerify = credential || idToken
-
-    if (!tokenToVerify) {
-      res.status(400).json({ error: 'Google OAuth credential / ID Token is required.' })
-      return
-    }
-
-    let googlePayload: any = null
-
-    // 1. Verify with google-auth-library if CLIENT_ID configured
-    if (config.googleClientId) {
-      try {
-        const ticket = await googleClient.verifyIdToken({
-          idToken: tokenToVerify,
-          audience: config.googleClientId,
-        })
-        googlePayload = ticket.getPayload()
-      } catch (e: any) {
-        console.warn('[GoogleAuth] verifyIdToken failed, attempting Google tokeninfo endpoint fallback:', e.message)
-      }
-    }
-
-    // 2. Direct Google tokeninfo fallback
-    if (!googlePayload) {
-      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenToVerify}`)
-      if (response.ok) {
-        googlePayload = await response.json()
-      }
-    }
-
-    if (!googlePayload || !googlePayload.email) {
-      res.status(401).json({ error: 'Invalid or expired Google OAuth credential.' })
-      return
-    }
-
-    const cleanEmail = googlePayload.email.toLowerCase().trim()
-    const googleName = googlePayload.name || 'Google User'
-    const googleAvatar = googlePayload.picture || '👤'
-
-    let user = await prisma.user.findUnique({
-      where: { email: cleanEmail },
-    })
-
-    if (!user) {
-      // Create user with verified Google email, but pending phone verification
-      const dummyHash = await bcrypt.hash(generateNumericOTP() + 'GoogleAuth@2026', 10)
-      user = await prisma.user.create({
-        data: {
-          name: googleName,
-          email: cleanEmail,
-          passwordHash: dummyHash,
-          role,
-          avatar: googleAvatar,
-          emailVerified: true,
-          phoneVerified: false,
-          accountStatus: 'pending_verification',
-          location: 'Jaipur, Rajasthan',
-          points: 250,
-        },
-      })
-    } else {
-      // Mark email verified
-      if (!user.emailVerified) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { emailVerified: true },
-        })
-      }
-    }
-
-    // Check if phone verification is required
-    if (!user.phoneVerified || !user.phone) {
-      res.json({
-        phoneVerificationRequired: true,
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        message: 'Google identity verified. Please verify your mobile phone number to complete account activation.',
-      })
-      return
-    }
-
-    // Update lastLogin and issue token
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLogin: new Date(),
-        accountStatus: 'active',
-      },
-    })
-
-    const token = generateToken(user.id, user.role, user.email, user.name)
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        phone: user.phone,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        accountStatus: 'active',
-        points: user.points,
-      },
-      message: 'Signed in with Google successfully!',
-    })
-  } catch (err: any) {
-    console.error('[AuthController] Google Auth Error:', err)
-    res.status(500).json({ error: err.message || 'Google authentication failed.' })
-  }
-}
-
-/**
- * 9. Forgot Password — Dispatches 6-Digit OTP to Gmail or Mobile Phone
+ * 8. Forgot Password — Dispatches 6-Digit OTP to email or mobile phone
  */
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {

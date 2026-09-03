@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AppProvider } from './context/AppContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
@@ -8,8 +7,6 @@ import LocalDashboard from './pages/local/LocalDashboard'
 import AuthorityDashboard from './pages/authority/AuthorityDashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import { Sparkles, RefreshCw, AlertTriangle } from 'lucide-react'
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '641976071477-mockclientid.apps.googleusercontent.com'
 
 class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: any) {
@@ -122,15 +119,13 @@ function AppContent() {
 export default function App() {
   return (
     <GlobalErrorBoundary>
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <AuthProvider>
-          <AppProvider>
-            <div className="min-h-full">
-              <AppContent />
-            </div>
-          </AppProvider>
-        </AuthProvider>
-      </GoogleOAuthProvider>
+      <AuthProvider>
+        <AppProvider>
+          <div className="min-h-full">
+            <AppContent />
+          </div>
+        </AppProvider>
+      </AuthProvider>
     </GlobalErrorBoundary>
   )
 }
