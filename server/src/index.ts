@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
+import bcrypt from 'bcryptjs'
+import { prisma } from './db/prisma.js'
 import { config } from './config/env.js'
 import { errorHandler } from './middleware/errorHandler.js'
 
@@ -74,8 +76,90 @@ app.use((_req, res) => {
 // Centralized Error Handling Middleware
 app.use(errorHandler)
 
+async function ensureDbInitialized() {
+  try {
+    const count = await prisma.user.count()
+    if (count === 0) {
+      console.log('🌱 Initializing default verified accounts...')
+      const pwd = await bcrypt.hash('YatraSetu@2026', 10)
+      const userPwd = await bcrypt.hash('Nikhil@1234', 10)
+
+      await prisma.user.createMany({
+        data: [
+          {
+            id: 'usr_nikhil',
+            name: 'Nikhil Pawde',
+            email: 'nikhilpawdepict@gmail.com',
+            passwordHash: userPwd,
+            role: 'user',
+            avatar: '👤',
+            phone: '+918459963052',
+            location: 'Jaipur, Rajasthan',
+            emailVerified: true,
+            phoneVerified: true,
+          },
+          {
+            id: 'usr_aarav_sharma',
+            name: 'Aarav Sharma',
+            email: 'aarav.sharma@example.com',
+            passwordHash: pwd,
+            role: 'user',
+            avatar: '👤',
+            phone: '+919876512345',
+            location: 'Jaipur, Rajasthan',
+            emailVerified: true,
+            phoneVerified: true,
+          },
+          {
+            id: 'usr_arjun_mehta',
+            name: 'Arjun Mehta',
+            email: 'arjun.mehta@example.com',
+            passwordHash: pwd,
+            role: 'local',
+            avatar: '🏡',
+            phone: '+919876543210',
+            location: 'Jaipur, Rajasthan',
+            speciality: 'Rajasthani Heritage & Forts Expert',
+            emailVerified: true,
+            phoneVerified: true,
+          },
+          {
+            id: 'usr_rajesh_verma',
+            name: 'Dr. Rajesh Verma',
+            email: 'rajesh.verma@rtdc.gov.in',
+            passwordHash: pwd,
+            role: 'authority',
+            avatar: '🛡️',
+            phone: '+919876500000',
+            location: 'Rajasthan Tourism Dept',
+            speciality: 'Civic Grievance Redressal Officer',
+            emailVerified: true,
+            phoneVerified: true,
+          },
+          {
+            id: 'usr_admin_sih',
+            name: 'Admin Command',
+            email: 'admin@yatrasetu.gov.in',
+            passwordHash: pwd,
+            role: 'admin',
+            avatar: '⚡',
+            phone: '+919876599999',
+            location: 'National Tourism Control Center',
+            emailVerified: true,
+            phoneVerified: true,
+          },
+        ],
+      })
+      console.log('✅ Accounts seeded successfully on Render!')
+    }
+  } catch (e) {
+    console.warn('DB initialization check:', e)
+  }
+}
+
 // Start Server
-app.listen(config.port, () => {
+app.listen(config.port, async () => {
+  await ensureDbInitialized()
   console.log(`
   =======================================================
   🚀 YatraSetu API Server (SIH 2026) is running!
