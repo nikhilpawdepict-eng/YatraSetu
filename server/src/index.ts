@@ -108,6 +108,8 @@ async function ensureDbInitialized() {
             location: 'Jaipur, Rajasthan',
             emailVerified: true,
             phoneVerified: true,
+            accountStatus: 'active',
+            twoFactorEnabled: false,
           },
           {
             id: 'usr_aarav_sharma',
@@ -120,6 +122,8 @@ async function ensureDbInitialized() {
             location: 'Jaipur, Rajasthan',
             emailVerified: true,
             phoneVerified: true,
+            accountStatus: 'active',
+            twoFactorEnabled: false,
           },
           {
             id: 'usr_arjun_mehta',
@@ -133,6 +137,8 @@ async function ensureDbInitialized() {
             speciality: 'Rajasthani Heritage & Forts Expert',
             emailVerified: true,
             phoneVerified: true,
+            accountStatus: 'active',
+            twoFactorEnabled: false,
           },
           {
             id: 'usr_rajesh_verma',
@@ -146,6 +152,8 @@ async function ensureDbInitialized() {
             speciality: 'Civic Grievance Redressal Officer',
             emailVerified: true,
             phoneVerified: true,
+            accountStatus: 'active',
+            twoFactorEnabled: false,
           },
           {
             id: 'usr_admin_sih',
@@ -158,10 +166,23 @@ async function ensureDbInitialized() {
             location: 'National Tourism Control Center',
             emailVerified: true,
             phoneVerified: true,
+            accountStatus: 'active',
+            twoFactorEnabled: false,
           },
         ],
       })
       console.log('✅ Accounts seeded successfully on Render!')
+    } else {
+      // Ensure all accounts are active and direct login enabled
+      await prisma.user.updateMany({
+        data: {
+          accountStatus: 'active',
+          twoFactorEnabled: false,
+          emailVerified: true,
+          phoneVerified: true,
+        },
+      })
+      console.log('✅ Accounts updated to active with direct login enabled!')
     }
   } catch (e) {
     console.warn('DB initialization check:', e)
