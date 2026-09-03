@@ -55,6 +55,17 @@ app.get('/api/health', (_req, res) => {
 })
 
 // Mount API Routes
+app.get('/api/debug-db', async (_req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true, emailVerified: true, phoneVerified: true, accountStatus: true },
+    })
+    res.json({ success: true, count: users.length, users })
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message, stack: err.stack })
+  }
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/bookings', bookingRoutes)
