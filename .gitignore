@@ -1,0 +1,11 @@
+node_modules/
+dist/
+
+.env
+.env.*
+!.env.example
+
+server/dev.db
+server/dev.db-journal
+server/uploads/
+client/.vercel/
