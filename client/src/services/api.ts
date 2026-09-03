@@ -14,7 +14,11 @@ import type {
 } from '../data/mockStore'
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD
+    ? 'https://yatrasetu-b3rs.onrender.com/api'
+    : 'http://localhost:5000/api')
 const TOKEN_STORAGE_KEY = 'yatrasetu_jwt_token'
 
 export function getAuthToken(): string | null {
