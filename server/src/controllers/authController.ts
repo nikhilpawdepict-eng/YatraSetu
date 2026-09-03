@@ -539,8 +539,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    // 2FA Enforcement
-    if (user.twoFactorEnabled) {
+    // 2FA Enforcement (only when explicitly requested)
+    if (user.twoFactorEnabled && req.body.enable2FA === true) {
       const raw2faOtp = generateNumericOTP()
       const otpHash = hashToken(raw2faOtp)
 
