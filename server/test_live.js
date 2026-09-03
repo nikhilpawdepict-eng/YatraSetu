@@ -1,6 +1,13 @@
 async function test() {
   try {
-    const res = await fetch('https://yatrasetu-b3rs.onrender.com/api/auth/login', {
+    console.log('--- 1. Testing /api/debug-db ---');
+    const dbRes = await fetch('https://yatrasetu-b3rs.onrender.com/api/debug-db');
+    console.log('DB Status:', dbRes.status);
+    const dbData = await dbRes.json();
+    console.log('DB Data:', JSON.stringify(dbData, null, 2));
+
+    console.log('\n--- 2. Testing /api/auth/login ---');
+    const loginRes = await fetch('https://yatrasetu-b3rs.onrender.com/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -8,9 +15,9 @@ async function test() {
         password: 'Nikhil@1234'
       })
     });
-    console.log('Status:', res.status);
-    const data = await res.json();
-    console.log('Response:', data);
+    console.log('Login Status:', loginRes.status);
+    const loginData = await loginRes.json();
+    console.log('Login Response:', loginData);
   } catch (err) {
     console.error('Error:', err);
   }

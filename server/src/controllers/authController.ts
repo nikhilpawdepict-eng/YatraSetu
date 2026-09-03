@@ -554,9 +554,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         },
       })
 
-      // Send 2FA via Email and Phone
-      await sendLogin2FAEmailOTP(user.email, user.name, raw2faOtp)
-      if (user.phone) await sendPhoneOTP(user.phone, raw2faOtp, 'LOGIN_2FA')
+      // Send 2FA via Email and Phone in parallel
+      Promise.allSettled([
+        sendLogin2FAEmailOTP(user.email, user.name, raw2faOtp),
+        user.phone ? sendPhoneOTP(user.phone, raw2faOtp, 'LOGIN_2FA') : Promise.resolve(),
+      ]).catch((e) => console.error('[2FA Dispatch Error]:', e))
 
       res.json({
         requires2FA: true,
