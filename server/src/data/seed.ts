@@ -15,6 +15,10 @@ async function seed() {
   await prisma.crowdSpot.deleteMany()
   await prisma.emergencyAlert.deleteMany()
   await prisma.emergencyService.deleteMany()
+  await prisma.itinerary.deleteMany()
+  await prisma.communityPost.deleteMany()
+  await prisma.notificationLog.deleteMany()
+  await prisma.touristCheckIn.deleteMany()
   await prisma.user.deleteMany()
 
   // 2. Seed Users
@@ -60,10 +64,24 @@ async function seed() {
     },
   })
 
+  const admin = await prisma.user.create({
+    data: {
+      id: 'usr_admin_travelboost',
+      name: 'System Admin (TravelBoost)',
+      email: 'admin@travelboost.gov.in',
+      passwordHash: defaultPasswordHash,
+      role: 'admin',
+      avatar: '⚡',
+      phone: '+91 11 2338 1234',
+      location: 'New Delhi (National Tourism Command)',
+    },
+  })
+
   console.log('✅ Demo users created:', {
     tourist: tourist.email,
     host: host.email,
     authority: authority.email,
+    admin: admin.email,
   })
 
   // 3. Seed Cleanliness Reports
@@ -695,7 +713,118 @@ async function seed() {
     ],
   })
 
-  console.log('🎉 YatraSetu Database Seed Completed Successfully!')
+  // 12. Seed Community Posts (Hidden Gems, Food, Culture, Photo Spots)
+  await prisma.communityPost.createMany({
+    data: [
+      {
+        id: 'post-1',
+        authorName: 'Rohan Deshmukh',
+        authorAvatar: '📸',
+        authorRole: 'Travel Photographer',
+        location: 'Panna Meena ka Kund, Amer, Jaipur',
+        title: 'Hidden 16th-Century Stepwell Without Crowds!',
+        content: 'While everyone lines up at Amber Fort, just 10 mins away lies Panna Meena Kund. The geometric symmetrical staircases are mind-blowing in early morning light (7:30 AM). Local chai stall nearby serves authentic ginger kulhad chai!',
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=600&h=400&fit=crop&auto=format',
+        ]),
+        category: 'Hidden Gem',
+        rating: 4.9,
+        likes: 142,
+        tips: 'Visit between 7:00 AM - 8:30 AM before guards restrict step access. No entry fee required.',
+        isHiddenGem: true,
+        isVerified: true,
+      },
+      {
+        id: 'post-2',
+        authorName: 'Pooja Kulkarni',
+        authorAvatar: '🍲',
+        authorRole: 'Culinary Explorer',
+        location: 'Laxmi Mishthan Bhandar (LMB), Johari Bazaar',
+        title: 'Authentic Ghevar & Pyaaz Kachori Paradise',
+        content: 'You cannot leave Jaipur without trying the crispy, piping hot Pyaaz Kachori and freshly made Malai Ghevar at LMB. Made using pure desi ghee since 1954.',
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&h=400&fit=crop&auto=format',
+        ]),
+        category: 'Food',
+        rating: 4.8,
+        likes: 98,
+        tips: 'Go around 4:00 PM for the freshest batch of evening kachoris.',
+        isHiddenGem: false,
+        isVerified: true,
+      },
+      {
+        id: 'post-3',
+        authorName: 'Arjun Mehta',
+        authorAvatar: '🏡',
+        authorRole: 'Verified Local Host',
+        location: 'Gaitore Ki Chhatriyan, Jaipur',
+        title: 'Royal Cenotaphs Tucked Below Nahargarh Hills',
+        content: 'One of the quietest and most artistic spots in Jaipur. Beautiful white marble cenotaphs with intricate carvings dedicated to Kachwaha rulers. Very peaceful atmosphere away from the city buzz.',
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?w=600&h=400&fit=crop&auto=format',
+        ]),
+        category: 'Cultural',
+        rating: 5.0,
+        likes: 184,
+        tips: 'Combine with an afternoon trek up the Nahargarh ramparts for sunset views.',
+        isHiddenGem: true,
+        isVerified: true,
+      },
+      {
+        id: 'post-4',
+        authorName: 'Aarav Sharma',
+        authorAvatar: '👤',
+        authorRole: 'Tourist Contributor',
+        location: 'Hawa Mahal View Rooftop Cafes',
+        title: 'Best Photography Angle for Hawa Mahal',
+        content: 'Tattoo Cafe and Wind View Cafe directly opposite Hawa Mahal give you the iconic postcard framing. Order a cold coffee and enjoy the pink facade under golden hour glow.',
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=600&h=400&fit=crop&auto=format',
+        ]),
+        category: 'Photo Spot',
+        rating: 4.7,
+        likes: 76,
+        tips: 'Carry a wide-angle lens (16-35mm) to capture both the street and facade.',
+        isHiddenGem: false,
+        isVerified: true,
+      },
+    ],
+  })
+
+  // 13. Seed Notification Logs
+  await prisma.notificationLog.createMany({
+    data: [
+      {
+        id: 'notif-1',
+        channel: 'whatsapp',
+        recipient: '+91 98765 12345',
+        subject: 'Booking Confirmation',
+        content: 'Namaste Aarav! Your booking for Rajwada Heritage Home (Aug 25-27) is confirmed. Host: Arjun Mehta (+91 98765 43210).',
+        metadata: JSON.stringify({ bookingId: '1', hostId: host.id }),
+        status: 'delivered',
+      },
+      {
+        id: 'notif-2',
+        channel: 'email',
+        recipient: 'aarav.sharma@example.com',
+        subject: 'TravelBoost - Your 3-Day Jaipur Heritage Itinerary is Ready!',
+        content: 'Detailed itinerary voucher with day-by-day timing, crowd predictions, and offline QR guide has been generated for your trip.',
+        metadata: JSON.stringify({ destination: 'Jaipur', days: 3 }),
+        status: 'delivered',
+      },
+      {
+        id: 'notif-3',
+        channel: 'sms',
+        recipient: '+91 98765 12345',
+        subject: 'Civic Issue Status Update',
+        content: 'TravelBoost Alert: Your report #1 regarding Sadar Bazar sanitation is now IN PROGRESS. Municipal Sanitation Team assigned.',
+        metadata: JSON.stringify({ reportId: '1', status: 'In Progress' }),
+        status: 'delivered',
+      },
+    ],
+  })
+
+  console.log('🎉 YatraSetu / TravelBoost Database Seed Completed Successfully!')
 }
 
 seed()

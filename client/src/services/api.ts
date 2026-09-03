@@ -1,4 +1,4 @@
-// YatraSetu API Client Service
+// TravelBoost / YatraSetu API Client Service
 
 import type {
   UserSession,
@@ -13,7 +13,7 @@ import type {
   EmergencyService,
 } from '../data/mockStore'
 
-  export const API_BASE_URL =
+export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 const TOKEN_STORAGE_KEY = 'yatrasetu_jwt_token'
 
@@ -60,89 +60,413 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       const errJson = await response.json()
       if (errJson.error) errMsg = errJson.error
     } catch {
-      // no JSON body
+      // Use fallback error message
     }
     throw new Error(errMsg)
   }
 
-  return response.json() as Promise<T>
+  return response.json()
 }
 
 export const api = {
   // Authentication
   auth: {
     async register(data: {
-      role: UserRole
       name: string
       email: string
-      password?: string
-      phone?: string
-      speciality?: string
-    }): Promise<{ token: string; user: UserSession }> {
-      const res = await request<{ token: string; user: UserSession }>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      setAuthToken(res.token)
-      return res
-    },
-
-    async login(data: {
+      phone: string
+      password: string
+      role?: string
+    }): Promise<{
+      success: boolean
+      userId: string
       email: string
-      password?: string
-      role?: UserRole
-    }): Promise<{ token: string; user: UserSession }> {
-      const res = await request<{ token: string; user: UserSession }>('/auth/login', {
+      phone: string
+      role: string
+      accountStatus: string
+      emailVerified: boolean
+      phoneVerified: boolean
+      message: string
+    }> {
+      return request('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       })
-      setAuthToken(res.token)
-      return res
     },
 
-    async quickDemo(role: UserRole): Promise<{ token: string; user: UserSession }> {
-      const res = await request<{ token: string; user: UserSession }>('/auth/quick-demo', {
+    async verifyEmailOtp(data: { email?: string; otp: string; userId?: string }): Promise<{
+      success: boolean
+      emailVerified: boolean
+      phoneVerified: boolean
+      accountStatus: string
+      message: string
+    }> {
+      return request('/auth/verify-email-otp', {
         method: 'POST',
-        body: JSON.stringify({ role }),
+        body: JSON.stringify(data),
       })
-      setAuthToken(res.token)
+    },
+
+    async resendEmailOtp(data: { email?: string; userId?: string }): Promise<{
+      success: boolean
+      message: string
+      expiresInSeconds: number
+    }> {
+      return request('/auth/resend-email-otp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async sendPhoneOtp(data: { phone?: string; userId?: string }): Promise<{
+      success: boolean
+      message: string
+      whatsappUri?: string
+      devOtp?: string
+      expiresInSeconds: number
+    }> {
+      return request('/auth/resend-phone-otp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async resendPhoneOtp(data: { phone?: string; userId?: string }): Promise<{
+      success: boolean
+      message: string
+      whatsappUri?: string
+      devOtp?: string
+      expiresInSeconds: number
+    }> {
+      return request('/auth/resend-phone-otp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async verifyPhoneOtp(data: { phone?: string; otp: string; userId?: string }): Promise<{
+      success: boolean
+      phoneVerified: boolean
+      emailVerified?: boolean
+      accountStatus?: string
+      message: string
+    }> {
+      return request('/auth/verify-phone-otp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async login(data: { email: string; password?: string }): Promise<{
+      token?: string
+      user?: any
+      requires2FA?: boolean
+      userId?: string
+      emailMasked?: string
+      phoneMasked?: string
+      message?: string
+    }> {
+      const res = await request<any>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      if (res.token) setAuthToken(res.token)
       return res
     },
 
-    async getMe(): Promise<{ user: UserSession }> {
-      return request<{ user: UserSession }>('/auth/me')
+    async verifyLoginOtp(data: { userId: string; otp: string }): Promise<{
+      success: boolean
+      token: string
+      user: any
+      message: string
+    }> {
+      const res = await request<any>('/auth/verify-login-otp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      if (res.token) setAuthToken(res.token)
+      return res
+    },
+
+    async googleAuth(credential: string, role: string = 'user'): Promise<{
+      success?: boolean
+      token?: string
+      user?: any
+      phoneVerificationRequired?: boolean
+      userId?: string
+      email?: string
+      name?: string
+      role?: string
+      message?: string
+    }> {
+      const res = await request<any>('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential, role }),
+      })
+      if (res.token) setAuthToken(res.token)
+      return res
+    },
+
+    async forgotPassword(data: { email?: string; phone?: string } | string): Promise<{
+      success: boolean
+      message: string
+      channel?: string
+      target?: string
+      expiresInSeconds?: number
+    }> {
+      const payload = typeof data === 'string' ? { email: data } : data
+      return request('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+    },
+
+    async resetPassword(data: { email?: string; phone?: string; otp: string; newPassword: string }): Promise<{
+      success: boolean
+      message: string
+    }> {
+      return request('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async getCurrentUser(): Promise<any> {
+      return request('/auth/me')
+    },
+
+    logout() {
+      setAuthToken(null)
+    },
+  },
+
+  // AI Personalized Travel Planner
+  planner: {
+    async generate(params: {
+      destination: string
+      duration?: number
+      startDate?: string
+      budget?: number
+      people?: number
+      interests?: string[]
+      transportPref?: string
+      stayPref?: string
+      foodPref?: string
+      startLocation?: string
+      intensity?: string
+    }) {
+      return request<{
+        success: boolean
+        destination: string
+        startDate: string
+        durationDays: number
+        groupSize: number
+        userBudget: number
+        plans: any[]
+        generatedAt: string
+      }>('/planner/generate', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      })
+    },
+
+    async modify(params: {
+      currentPlan: any
+      prompt: string
+      modificationType?: string
+    }) {
+      return request<{
+        success: boolean
+        modifiedPlan: any
+        changeSummary: string
+        timestamp: string
+      }>('/planner/modify', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      })
+    },
+
+    async save(data: {
+      userId?: string
+      destination: string
+      startDate: string
+      durationDays: number
+      budgetTier: string
+      totalCost: number
+      remainingBudget: number
+      summary: string
+      plan: any
+    }) {
+      return request<{ success: boolean; savedItinerary: any }>('/planner/save', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async getSaved(userId?: string) {
+      const q = userId ? `?userId=${encodeURIComponent(userId)}` : ''
+      return request<any[]>(`/planner/saved${q}`)
+    },
+  },
+
+  // Multi-Channel Notifications (WhatsApp, Gmail, Phone SMS)
+  notifications: {
+    async sendWhatsApp(data: {
+      phone: string
+      message: string
+      templateType?: string
+      recipientName?: string
+      metadata?: any
+    }) {
+      return request<{
+        success: boolean
+        message: string
+        logId: string
+        recipient: string
+        deliveredAt: string
+        directWhatsAppUrl: string
+        webWhatsAppUrl: string
+      }>('/notifications/send-whatsapp', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async sendEmail(data: {
+      email: string
+      subject: string
+      body?: string
+      htmlContent?: string
+      recipientName?: string
+      metadata?: any
+    }) {
+      return request<{
+        success: boolean
+        message: string
+        logId: string
+        recipient: string
+        subject: string
+        deliveredAt: string
+        gmailComposeUrl: string
+        mailtoUrl: string
+      }>('/notifications/send-email', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async sendSms(data: {
+      phone: string
+      message: string
+      recipientName?: string
+      metadata?: any
+    }) {
+      return request<{
+        success: boolean
+        message: string
+        logId: string
+        recipient: string
+        smsUri: string
+        deliveredAt: string
+      }>('/notifications/send-sms', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async getLogs() {
+      return request<any[]>('/notifications/logs')
+    },
+  },
+
+  // Community Tourism, Reviews, Hidden Gems
+  community: {
+    async getPosts(category?: string, location?: string, hiddenOnly?: boolean) {
+      const params = new URLSearchParams()
+      if (category && category !== 'All') params.append('category', category)
+      if (location) params.append('location', location)
+      if (hiddenOnly) params.append('hiddenOnly', 'true')
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      return request<any[]>(`/community/posts${qs}`)
+    },
+
+    async createPost(data: {
+      authorName?: string
+      authorAvatar?: string
+      authorRole?: string
+      location: string
+      title: string
+      content: string
+      images?: string[]
+      category?: string
+      rating?: number
+      tips?: string
+      isHiddenGem?: boolean
+    }) {
+      return request<{ success: boolean; post: any }>('/community/posts', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+
+    async likePost(id: string) {
+      return request<{ success: boolean; likes: number }>(`/community/posts/${id}/like`, {
+        method: 'POST',
+      })
+    },
+
+    async getReviewSentiment(location?: string) {
+      return request<any>('/community/reviews/sentiment', {
+        method: 'POST',
+        body: JSON.stringify({ location: location || 'Jaipur' }),
+      })
+    },
+
+    async getHiddenGems() {
+      return request<any[]>('/community/hidden-gems')
     },
   },
 
   // Cleanliness Reports
   reports: {
     async getAll(params?: { search?: string; status?: string; myReports?: boolean }): Promise<CleanlinessReport[]> {
-      const q = new URLSearchParams()
-      if (params?.search) q.set('search', params.search)
-      if (params?.status && params.status !== 'All') q.set('status', params.status)
-      if (params?.myReports) q.set('myReports', 'true')
-      const queryString = q.toString() ? `?${q.toString()}` : ''
-      return request<CleanlinessReport[]>(`/reports${queryString}`)
+      const searchParams = new URLSearchParams()
+      if (params?.search) searchParams.append('search', params.search)
+      if (params?.status && params.status !== 'All') searchParams.append('status', params.status)
+      if (params?.myReports) searchParams.append('myReports', 'true')
+
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      return request<CleanlinessReport[]>(`/reports${qs}`)
     },
 
-    async create(report: {
+    async getById(id: string): Promise<CleanlinessReport> {
+      return request<CleanlinessReport>(`/reports/${id}`)
+    },
+
+    async create(data: {
       name: string
       location: string
-      impact: 'High' | 'Medium' | 'Low'
-      evidence?: string[]
-      comments?: string[]
-      userSolutions?: string[]
+      impact?: string
       description?: string
+      evidence?: string[]
     }): Promise<CleanlinessReport> {
       return request<CleanlinessReport>('/reports', {
         method: 'POST',
-        body: JSON.stringify(report),
+        body: JSON.stringify(data),
       })
     },
 
-    async toggleVote(reportId: string): Promise<{ success: boolean; votes: number; hasUpvoted: boolean }> {
-      return request<{ success: boolean; votes: number; hasUpvoted: boolean }>(`/reports/${reportId}/vote`, {
+    async vote(reportId: string): Promise<{ success: boolean; votes: number; rank: number; medal: string | null; hasUpvoted: boolean }> {
+      return request<{ success: boolean; votes: number; rank: number; medal: string | null; hasUpvoted: boolean }>(
+        `/reports/${reportId}/vote`,
+        { method: 'POST' }
+      )
+    },
+
+    async addComment(reportId: string, comment: string): Promise<{ success: boolean; comments: string[] }> {
+      return request<{ success: boolean; comments: string[] }>(`/reports/${reportId}/comment`, {
         method: 'POST',
+        body: JSON.stringify({ comment }),
       })
     },
 
@@ -174,7 +498,7 @@ export const api = {
     },
   },
 
-  // Listings
+  // Listings (Homestays, Guides, Artisans/Products)
   listings: {
     async getHomestays(): Promise<HomestayListing[]> {
       return request<HomestayListing[]>('/listings/homestays')
@@ -226,14 +550,25 @@ export const api = {
     },
   },
 
-  // Crowd Information
+  // Crowd Information & Prediction
   crowd: {
-    async getSpots(festival?: string): Promise<CrowdSpot[]> {
-      const q = festival && festival !== 'All Events & Pilgrimages' ? `?festival=${encodeURIComponent(festival)}` : ''
-      return request<CrowdSpot[]>(`/crowd/spots${q}`)
+    async getSpots(festival?: string, location?: string): Promise<CrowdSpot[]> {
+      const params = new URLSearchParams()
+      if (festival && festival !== 'All Events & Pilgrimages') params.append('festival', festival)
+      if (location) params.append('location', location)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      return request<CrowdSpot[]>(`/crowd${q}`)
+    },
+    async getPrediction(destination?: string, festival?: string, date?: string) {
+      const params = new URLSearchParams()
+      if (destination) params.append('destination', destination)
+      if (festival) params.append('festival', festival)
+      if (date) params.append('date', date)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      return request<any>(`/crowd/prediction${q}`)
     },
     async updateSpot(id: string, data: Partial<CrowdSpot>): Promise<CrowdSpot> {
-      return request<CrowdSpot>(`/crowd/spots/${id}`, {
+      return request<CrowdSpot>(`/crowd/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       })
@@ -256,6 +591,38 @@ export const api = {
       const q = location ? `?location=${encodeURIComponent(location)}` : ''
       return request<EmergencyService[]>(`/emergency/services${q}`)
     },
+    async checkIn(data: {
+      userId?: string
+      userName: string
+      userPhone?: string
+      location: string
+      status?: string
+      emergencyContact?: string
+      note?: string
+      dispatchAlerts?: boolean
+    }) {
+      return request<any>('/emergency/check-in', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
+    async getCheckIns(location?: string) {
+      const q = location ? `?location=${encodeURIComponent(location)}` : ''
+      return request<any[]>(`/emergency/check-ins${q}`)
+    },
+    async triggerSos(data: {
+      userName: string
+      userPhone: string
+      location: string
+      gpsCoordinates?: string
+      emergencyContact?: string
+      userEmail?: string
+    }) {
+      return request<any>('/emergency/sos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    },
   },
 
   // Chat & Messaging
@@ -267,6 +634,22 @@ export const api = {
       return request(`/chats/${threadId}`, {
         method: 'POST',
         body: JSON.stringify(data),
+      })
+    },
+  },
+
+  // Admin & Analytics
+  admin: {
+    async getAnalytics() {
+      return request<any>('/admin/analytics')
+    },
+    async getAllUsers() {
+      return request<any[]>('/admin/users')
+    },
+    async updateUserRole(id: string, role: string) {
+      return request<any>(`/admin/users/${id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
       })
     },
   },

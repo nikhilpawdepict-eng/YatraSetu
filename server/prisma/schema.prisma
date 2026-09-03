@@ -1,37 +1,82 @@
-// Prisma Schema for YatraSetu (SIH 2026)
+// Prisma Schema for YatraSetu & TravelBoost (SIH 2026)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String   // "user" | "local" | "authority"
-  avatar       String   @default("👤")
-  phone        String?
-  location     String?  @default("Jaipur, Rajasthan")
-  speciality   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String
+  email             String   @unique
+  passwordHash      String
+  role              String   // "user" | "local" | "authority" | "admin"
+  avatar            String   @default("👤")
+  phone             String?
+  location          String?  @default("Jaipur, Rajasthan")
+  speciality        String?
+  points            Int      @default(150)
+  badges            String   @default("[\"Explorer\"]") // JSON array of string badge names
+  
+  // Production Auth & Verification fields
+  emailVerified     Boolean  @default(false)
+  phoneVerified     Boolean  @default(false)
+  accountStatus     String   @default("pending_verification") // "pending_verification" | "active" | "suspended"
+  twoFactorEnabled  Boolean  @default(true)
+  lastLogin         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  reports        CleanlinessReport[]
-  reportVotes    ReportVote[]
-  bookings       Booking[]
-  homestays      Homestay[]
-  guides         Guide[]
-  products       Product[]
-  sentMessages   Message[]           @relation("SentMessages")
-  alerts         EmergencyAlert[]
+  reports           CleanlinessReport[]
+  reportVotes       ReportVote[]
+  bookings          Booking[]
+  homestays         Homestay[]
+  guides            Guide[]
+  products          Product[]
+  sentMessages      Message[]           @relation("SentMessages")
+  alerts            EmergencyAlert[]
+  verificationTokens VerificationToken[]
+  otps              OTP[]
 
   @@map("users")
+}
+
+model VerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  type      String    // "EMAIL_VERIFICATION" | "PASSWORD_RESET"
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("verification_tokens")
+}
+
+model OTP {
+  id         String    @id @default(uuid())
+  userId     String?
+  target     String    // email address or phone number
+  otpHash    String
+  purpose    String    // "PHONE_VERIFICATION" | "EMAIL_VERIFICATION" | "LOGIN_2FA" | "PASSWORD_RESET"
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  maxAttempts Int      @default(5)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([target])
+  @@map("otps")
 }
 
 model CleanlinessReport {
@@ -231,4 +276,69 @@ model Message {
   sender User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+model Itinerary {
+  id              String   @id @default(uuid())
+  userId          String
+  destination     String
+  startDate       String
+  durationDays    Int
+  budgetTier      String   // "Budget" | "Balanced" | "Premium"
+  totalCost       Int
+  remainingBudget Int
+  summary         String
+  daysJson        String   // JSON string of Day[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("itineraries")
+}
+
+model CommunityPost {
+  id          String   @id @default(uuid())
+  authorName  String
+  authorAvatar String   @default("👤")
+  authorRole  String   @default("Tourist")
+  location    String
+  title       String
+  content     String
+  images      String   @default("[]") // JSON string of urls
+  category    String   // "Hidden Gem" | "Food" | "Cultural" | "Photo Spot" | "Travel Tip"
+  rating      Float    @default(5.0)
+  likes       Int      @default(0)
+  tips        String?
+  isHiddenGem Boolean  @default(false)
+  isVerified  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("community_posts")
+}
+
+model NotificationLog {
+  id        String   @id @default(uuid())
+  channel   String   // "whatsapp" | "email" | "sms"
+  recipient String
+  subject   String?
+  content   String
+  metadata  String   @default("{}") // JSON string
+  status    String   @default("delivered") // "delivered" | "sent" | "failed"
+  createdAt DateTime @default(now())
+
+  @@map("notification_logs")
+}
+
+model TouristCheckIn {
+  id               String   @id @default(uuid())
+  userId           String?
+  userName         String
+  userPhone        String?
+  location         String
+  status           String   @default("SAFE") // "SAFE" | "NEEDS_ASSISTANCE" | "SOS"
+  emergencyContact String?
+  note             String?
+  createdAt        DateTime @default(now())
+
+  @@map("tourist_checkins")
 }

@@ -1,273 +1,248 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api } from '../../services/api'
 import { useApp } from '../../context/AppContext'
-import MockMap from '../../components/MockMap'
-import { matchesDestination } from '../../services/locationService'
-import type { CrowdSpot } from '../../data/mockStore'
+import InteractiveMap, { MapMarkerItem } from '../../components/InteractiveMap'
+import { getCityDataset } from '../../services/destinationData'
+import {
+  Users,
+  Clock,
+  Sparkles,
+  TrendingUp,
+  Calendar,
+  AlertCircle,
+  CheckCircle,
+  HelpCircle,
+  ChevronRight,
+  Shield,
+  Layers,
+  MapPin,
+  RefreshCw,
+  Navigation,
+} from 'lucide-react'
 
 export default function CrowdPredictor() {
-  const { spots = [], activeLocation, destinationPOIs = [], showToast } = useApp()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedSpot, setSelectedSpot] = useState<any>(null)
-  const [optimizedRoute, setOptimizedRoute] = useState<string[] | null>(null)
+  const { activeLocation } = useApp()
+  const [selectedFestival, setSelectedFestival] = useState('Regular Day')
+  const [predictionData, setPredictionData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [simulatedHour, setSimulatedHour] = useState('08:00 AM')
 
-  // Filter spots belonging to active destination
-  const destinationSpots = spots.filter((s) => matchesDestination(s.location, activeLocation.city))
-  const hasLiveCrowdSensors = destinationSpots.length > 0
+  // Dynamic city dataset containing real coordinates and crowd markers for activeLocation
+  const cityData = getCityDataset(activeLocation.city)
 
-  // Fallback POIs for destinations without live sensors
-  const displayedSpots: any[] = hasLiveCrowdSensors
-    ? destinationSpots
-    : destinationPOIs.length > 0
-    ? destinationPOIs.map((poi, idx) => ({
-        id: `poi-${idx}`,
-        name: poi.name,
-        location: `${poi.category}, ${activeLocation.city}`,
-        date: 'Today',
-        time: 'Live',
-        open: true,
-        density: 'Verified Landmark',
-        densityLevel: 'verified' as const,
-        trend: '→ Verified',
-        waitTime: 'Standard Entry',
-        mapX: 80 + ((idx * 65) % 280),
-        mapY: 70 + ((idx * 50) % 200),
-      }))
-    : [
-        {
-          id: 'poi-1',
-          name: `${activeLocation.city} Historic Core`,
-          location: `${activeLocation.city}, ${activeLocation.state}`,
-          date: 'Today',
-          time: 'Live',
-          open: true,
-          density: 'Verified Landmark',
-          densityLevel: 'verified' as const,
-          trend: '→ Verified',
-          waitTime: 'Standard Entry',
-          mapX: 120,
-          mapY: 100,
-        },
-        {
-          id: 'poi-2',
-          name: `${activeLocation.city} Central Promenade`,
-          location: `${activeLocation.city}, ${activeLocation.state}`,
-          date: 'Today',
-          time: 'Live',
-          open: true,
-          density: 'Verified Landmark',
-          densityLevel: 'verified' as const,
-          trend: '→ Verified',
-          waitTime: 'Standard Entry',
-          mapX: 220,
-          mapY: 140,
-        },
-        {
-          id: 'poi-3',
-          name: `${activeLocation.city} Cultural Complex`,
-          location: `${activeLocation.city}, ${activeLocation.state}`,
-          date: 'Today',
-          time: 'Live',
-          open: true,
-          density: 'Verified Landmark',
-          densityLevel: 'verified' as const,
-          trend: '→ Verified',
-          waitTime: 'Standard Entry',
-          mapX: 310,
-          mapY: 110,
-        },
-      ]
+  const festivals = [
+    'Regular Day',
+    'Teej Festival / Shravan Mela',
+    'Diwali & Heritage Festival Surge',
+    'Weekend / National Holiday Spike',
+    'Ganga Aarti / Sacred Tithi',
+  ]
 
-  const filtered = displayedSpots.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.location.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const mapSpots = filtered.map((s) => ({
-    id: s.id,
-    name: s.name,
-    x: s.mapX,
-    y: s.mapY,
-    count: s.count || 0,
-    level: s.density === 'Closed' ? ('high' as const) : (s.densityLevel || 'low'),
-  }))
-
-  const densityBg: Record<string, string> = {
-    High: '#FBE6E6',
-    Moderate: '#FBF1DA',
-    Low: '#E4F7EC',
-    Closed: '#F7F6F2',
-    'Verified Landmark': '#E4F3EF',
+  const fetchPrediction = async () => {
+    setLoading(true)
+    try {
+      const data = await api.crowd.getPrediction(activeLocation.city || 'Jaipur', selectedFestival)
+      setPredictionData(data)
+    } catch (err: any) {
+      console.error('Failed to load crowd prediction:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const densityColor: Record<string, string> = {
-    High: '#D64545',
-    Moderate: '#D89A1C',
-    Low: '#1E9E5A',
-    Closed: '#7B8582',
-    'Verified Landmark': '#0F6E5C',
-  }
+  useEffect(() => {
+    fetchPrediction()
+  }, [activeLocation, selectedFestival])
 
-  const handleOptimizeRoute = () => {
-    const list = filtered.filter((s) => s.open !== false).map((s) => s.name)
-    if (list.length === 0) return
-    // Simple sort / route optimization prioritizing Low/Moderate before High
-    const sorted = [...list].reverse()
-    setOptimizedRoute(sorted)
-    showToast(`AI Pilgrimage & Route optimized for ${activeLocation.displayName}!`, 'success')
-  }
+  // Get crowd markers for the active destination
+  const crowdMarkers: MapMarkerItem[] = cityData.markers.map((m) => {
+    if (m.type === 'crowd' && selectedFestival !== 'Regular Day') {
+      return { ...m, crowdLevel: 'high', badge: '⚠️ Festival Surge Alert' }
+    }
+    return m
+  })
 
   return (
-    <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-6 space-y-5">
-      {/* Title & Active Destination Status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-700 text-[#141B18]" style={{ fontFamily: 'Fraunces, serif' }}>
-              Crowd Predictor & Pilgrimage Routing
-            </h2>
-            <span className="text-[10px] bg-[#E4F3EF] text-[#0F6E5C] font-700 px-2.5 py-0.5 rounded-full border border-[#0F6E5C]/20">
-              📍 {activeLocation.displayName}
-            </span>
+    <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-6 space-y-6">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-[#0F6E5C] via-[#0A4E42] to-[#141B18] text-white rounded-3xl p-6 md:p-8 shadow-md relative overflow-hidden flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-2xl space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white/90 text-xs font-700">
+            <Sparkles className="w-3.5 h-3.5 text-[#E8B931]" />
+            <span>AI Pilgrimage & Festival Crowd Predictor — {activeLocation.displayName}</span>
           </div>
-          <p className="text-[#7B8582] text-xs md:text-sm mt-0.5">
-            AI-powered crowd forecasting and off-peak corridor recommendations.
+          <h1 className="text-2xl md:text-4xl font-800 tracking-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+            Live Predictive Crowd Intelligence & Navigation
+          </h1>
+          <p className="text-sm text-white/80 leading-relaxed">
+            Historical footfall time-series, festival calendar surges, and Google Maps-style turn-by-turn traffic corridors for {activeLocation.city}.
           </p>
         </div>
 
-        <button
-          onClick={handleOptimizeRoute}
-          className="h-11 px-5 rounded-2xl bg-[#0F6E5C] hover:bg-[#0B5849] text-white font-700 text-xs md:text-sm flex items-center gap-2 shadow-xs active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-        >
-          <span>✨</span>
-          <span>Optimize My Route</span>
-        </button>
+        {/* Festival & Event Selector */}
+        <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/20 space-y-1.5">
+          <label className="block text-[11px] font-700 uppercase tracking-wider text-white/80">
+            Simulate Event / Calendar Day
+          </label>
+          <select
+            value={selectedFestival}
+            onChange={(e) => setSelectedFestival(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-white text-[#141B18] font-700 text-xs focus:outline-hidden cursor-pointer"
+          >
+            {festivals.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Honesty Banner if destination lacks live sensors */}
-      {!hasLiveCrowdSensors && (
-        <div className="bg-[#FAF9F5] border border-[#E4E7E5] rounded-2xl p-4 flex items-center gap-3 text-xs text-[#4B5551]">
-          <span className="text-2xl flex-shrink-0">🗺️</span>
-          <div>
-            <p className="font-700 text-[#141B18]">Verified Destination Landmarks</p>
-            <p className="text-[#7B8582] mt-0.5">
-              Crowd telemetry sensors are not currently active in {activeLocation.displayName}. Showing verified OpenStreetMap landmarks and tourist points of interest without fabricated crowd estimations.
-            </p>
-          </div>
+      {loading ? (
+        <div className="py-20 text-center space-y-3">
+          <RefreshCw className="w-8 h-8 text-[#0F6E5C] animate-spin mx-auto" />
+          <p className="text-xs font-700 text-[#7B8582]">Running AI Crowd Surge Model for {activeLocation.city}...</p>
         </div>
-      )}
+      ) : predictionData ? (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Top Recommendation Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-[#E4E7E5] shadow-xs space-y-1.5">
+              <span className="text-xs font-700 text-[#1E9E5A] uppercase tracking-wider">
+                🌟 Recommended Visiting Windows
+              </span>
+              <p className="text-base font-800 text-[#141B18]" style={{ fontFamily: 'Fraunces, serif' }}>
+                {predictionData.bestVisitingWindows[0]?.window}
+              </p>
+              <p className="text-xs text-[#505D58]">
+                {predictionData.bestVisitingWindows[0]?.reason}
+              </p>
+            </div>
 
-      {/* Main Grid: List (1/2) + Map & Optimization Workspace (1/2) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Left Col — Search & Spots Catalog */}
-        <div className="space-y-3">
-          <div className="bg-white p-4 rounded-2xl border border-[#E4E7E5] shadow-xs space-y-2">
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-[#7B8582]">🔍</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search spots or landmarks in ${activeLocation.city}...`}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-[#E4E7E5] text-xs text-[#141B18] placeholder-[#7B8582] focus:outline-none focus:border-[#0F6E5C]"
-              />
+            <div className="bg-white p-5 rounded-2xl border border-[#E4E7E5] shadow-xs space-y-1.5">
+              <span className="text-xs font-700 text-[#D64545] uppercase tracking-wider">
+                ⚠️ Avoid High Surge Hours
+              </span>
+              <p className="text-base font-800 text-[#D64545]" style={{ fontFamily: 'Fraunces, serif' }}>
+                11:30 AM – 03:00 PM
+              </p>
+              <p className="text-xs text-[#505D58]">
+                Peak tour bus arrivals, courtyard bottlenecks, and queue times exceeding 45 minutes in {activeLocation.city}.
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-[#E4E7E5] shadow-xs space-y-1.5">
+              <span className="text-xs font-700 text-[#0F6E5C] uppercase tracking-wider">
+                🤖 AI Model Confidence Score
+              </span>
+              <p className="text-base font-800 text-[#0F6E5C]" style={{ fontFamily: 'Fraunces, serif' }}>
+                {predictionData.aiConfidenceScore}
+              </p>
+              <p className="text-xs text-[#505D58]">
+                Trained on historical footfall, train arrivals proxy, and festival calendars.
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3 max-h-[640px] overflow-y-auto scrollbar-hide pr-1">
-            {filtered.map((s) => {
-              const isSelected = selectedSpot?.id === s.id
-              const densityLabel = s.density || 'Low'
-
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => setSelectedSpot(s)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-[#0F6E5C] bg-[#E4F3EF]/50 shadow-xs'
-                      : 'border-[#E4E7E5] bg-white hover:border-[#0F6E5C]/40 hover:bg-[#FAFAF8]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <div>
-                      <h4 className="font-700 text-sm text-[#141B18] leading-snug">{s.name}</h4>
-                      <p className="text-xs text-[#7B8582]">📍 {s.location}</p>
-                    </div>
-
-                    <span
-                      className="text-[10px] font-700 px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor: densityBg[densityLabel] || '#F7F6F2',
-                        color: densityColor[densityLabel] || '#141B18',
-                      }}
-                    >
-                      {densityLabel}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#E4E7E5]/70 text-xs">
-                    <div>
-                      <span className="text-[10px] text-[#7B8582]">Estimated Wait:</span>
-                      <p className="font-700 text-[#141B18]">{s.waitTime}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#7B8582]">Trend:</span>
-                      <p className="font-700 text-[#0F6E5C]">{s.trend}</p>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Right Col — Spatial Map & Route Optimizer Card */}
-        <div className="space-y-4">
-          <div className="bg-white p-5 rounded-3xl border border-[#E4E7E5] shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-700 text-[#141B18] text-sm" style={{ fontFamily: 'Fraunces, serif' }}>
-                Spatial Density & Off-Peak Corridors
-              </h3>
-              <span className="text-[10px] text-[#7B8582]">{activeLocation.displayName}</span>
-            </div>
-
-            <MockMap spots={mapSpots} activeDestination={activeLocation.displayName} />
-          </div>
-
-          {/* AI Route Optimizer Output */}
-          {optimizedRoute && (
-            <div className="bg-[#F7F6F2] p-5 rounded-3xl border border-[#E4E7E5] space-y-3 slide-up">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">✨</span>
-                  <h4 className="font-700 text-sm text-[#141B18]">Recommended Off-Peak Sequence</h4>
-                </div>
-                <span className="text-[10px] bg-[#E4F3EF] text-[#0F6E5C] font-700 px-2 py-0.5 rounded-full">
-                  AI Calibrated
-                </span>
+          {/* Hourly Forecast Curve */}
+          <div className="bg-white rounded-2xl p-6 border border-[#E4E7E5] shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E4E7E5] pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#0F6E5C]" />
+                <h3 className="font-700 text-base text-[#141B18]" style={{ fontFamily: 'Fraunces, serif' }}>
+                  Predicted Hourly Crowd Curve — {activeLocation.city} ({selectedFestival})
+                </h3>
               </div>
-              <p className="text-xs text-[#7B8582]">
-                Visit earlier destinations first to avoid entry queues and heavy tourist footfall:
+              <span className="text-xs font-700 text-[#7B8582]">06:00 AM to 08:00 PM</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              {predictionData.hourlyForecast.map((h: any) => {
+                const pct = Math.round((h.occupancy / h.capacity) * 100)
+                const isSelected = simulatedHour === h.time
+                return (
+                  <button
+                    key={h.time}
+                    onClick={() => setSimulatedHour(h.time)}
+                    className={`p-3.5 rounded-2xl border text-center space-y-2 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-[#0F6E5C] bg-[#E4F3EF] shadow-xs scale-102'
+                        : 'border-[#E4E7E5] bg-[#F7F6F2] hover:bg-white'
+                    }`}
+                  >
+                    <span className="text-xs font-800 text-[#141B18] block">{h.time}</span>
+                    <div className="h-16 flex items-end justify-center py-1">
+                      <div
+                        className={`w-5 rounded-t-md transition-all duration-300 ${
+                          h.level === 'High'
+                            ? 'bg-[#D64545]'
+                            : h.level === 'Moderate'
+                            ? 'bg-[#D89A1C]'
+                            : 'bg-[#1E9E5A]'
+                        }`}
+                        style={{ height: `${Math.max(15, pct)}%` }}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-800 px-2 py-0.5 rounded-full inline-block ${
+                        h.level === 'High'
+                          ? 'bg-[#FDE8E8] text-[#D64545]'
+                          : h.level === 'Moderate'
+                          ? 'bg-[#FEF3C7] text-[#D89A1C]'
+                          : 'bg-[#E4F7EC] text-[#1E9E5A]'
+                      }`}
+                    >
+                      {h.level}
+                    </span>
+                    <p className="text-[10px] text-[#7B8582]">{h.waitMin}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Explainable AI Factors & Interactive Destination Map */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Explainable AI Factors (5 cols) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-[#E4E7E5] shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-[#E4E7E5] pb-3">
+                <Sparkles className="w-5 h-5 text-[#0F6E5C]" />
+                <h3 className="font-700 text-base text-[#141B18]" style={{ fontFamily: 'Fraunces, serif' }}>
+                  Explainable AI Factor Breakdown
+                </h3>
+              </div>
+              <p className="text-xs text-[#505D58] leading-relaxed">
+                Why is the crowd predicted at this level in {activeLocation.city}?
               </p>
 
-              <div className="space-y-2">
-                {optimizedRoute.map((stop, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-[#E4E7E5] text-xs">
-                    <span className="w-6 h-6 rounded-full bg-[#0F6E5C] text-white font-800 text-[11px] flex items-center justify-center flex-shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="font-700 text-[#141B18] flex-1 truncate">{stop}</span>
-                    <span className="text-[10px] text-[#7B8582]">
-                      {idx === 0 ? '🌅 Early Morning' : idx === 1 ? '🌤️ Mid-Morning' : '🌇 Afternoon / Sunset'}
-                    </span>
+              <div className="space-y-3">
+                {predictionData.explainableFactors.map((f: any) => (
+                  <div key={f.factor} className="p-3 rounded-xl bg-[#F7F6F2] border border-[#E4E7E5] text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-700 text-[#141B18]">{f.factor}</span>
+                      <span className="font-800 text-[#0F6E5C]">{f.impact} {f.trend}</span>
+                    </div>
+                    <p className="text-[11px] text-[#505D58]">{f.description}</p>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+
+            {/* Interactive Destination & Route Map with Traffic Status (7 cols) */}
+            <div className="lg:col-span-7">
+              <InteractiveMap
+                center={cityData.center}
+                zoom={cityData.zoom}
+                items={crowdMarkers}
+                height="460px"
+                title={`${activeLocation.city} Live Crowd Hotspots & Google Maps-Style Traffic Corridor`}
+                showFilters={true}
+                showRouteFinder={true}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

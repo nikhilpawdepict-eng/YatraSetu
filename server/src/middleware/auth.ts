@@ -5,7 +5,7 @@ import { prisma } from '../db/prisma.js'
 
 export interface AuthPayload {
   userId: string
-  role: 'user' | 'local' | 'authority'
+  role: 'user' | 'local' | 'authority' | 'admin'
   email: string
   name: string
 }
@@ -81,7 +81,9 @@ export const optionalAuth = async (
   next()
 }
 
-export const requireRole = (...allowedRoles: ('user' | 'local' | 'authority')[]) => {
+export const authenticateToken = authenticate
+
+export const requireRole = (...allowedRoles: ('user' | 'local' | 'authority' | 'admin')[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: 'Authentication required.' })
@@ -98,3 +100,4 @@ export const requireRole = (...allowedRoles: ('user' | 'local' | 'authority')[])
     next()
   }
 }
+

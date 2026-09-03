@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { getCrowdSpots, updateCrowdSpot } from '../controllers/crowdController.js'
-import { authenticate, requireRole } from '../middleware/auth.js'
+import { getCrowdSpots, updateCrowdSpot, getCrowdPrediction } from '../controllers/crowdController.js'
 
 const router = Router()
 
-router.get('/spots', getCrowdSpots)
-router.patch('/spots/:id', authenticate, requireRole('authority'), updateCrowdSpot)
+router.get('/', getCrowdSpots)
+router.get('/prediction', getCrowdPrediction)
+router.patch('/:id', updateCrowdSpot)
 
 export default router

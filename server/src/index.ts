@@ -13,6 +13,10 @@ import crowdRoutes from './routes/crowdRoutes.js'
 import emergencyRoutes from './routes/emergencyRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
+import plannerRoutes from './routes/plannerRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
+import communityRoutes from './routes/communityRoutes.js'
+import adminRoutes from './routes/adminRoutes.js'
 
 const app = express()
 
@@ -41,8 +45,8 @@ app.use('/uploads', express.static(config.uploadDir))
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
-    project: 'YatraSetu',
-    version: '1.0.0',
+    project: 'TravelBoost / YatraSetu',
+    version: '2.0.0 (SIH 2026)',
     timestamp: new Date().toISOString(),
     environment: config.nodeEnv,
   })
@@ -57,6 +61,10 @@ app.use('/api/crowd', crowdRoutes)
 app.use('/api/emergency', emergencyRoutes)
 app.use('/api/chats', chatRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/planner', plannerRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/community', communityRoutes)
+app.use('/api/admin', adminRoutes)
 
 // 404 Route Handler
 app.use((_req, res) => {
